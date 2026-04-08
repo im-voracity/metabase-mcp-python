@@ -314,23 +314,15 @@ def register_dashboard_tools(mcp: FastMCP, client: MetabaseClient) -> None:
             for m in mappings:
                 if not m.get("target"):
                     errors.append(f"Parameter '{m['parameter_id']}' has no target")
-                    continue
-
-                target = m["target"]
-                if not isinstance(target, list) or len(target) == 0:
-                    continue
-
-                if target[0] != "dimension":
-                    continue
-
-                has_stage = any(
-                    isinstance(t, dict) and "stage-number" in t
-                    for t in target
-                )
-                if not has_stage:
-                    errors.append(
-                        f"Parameter '{m['parameter_id']}' missing stage-number (MBQL cards require this)"
+                elif isinstance(m["target"], list) and len(m["target"]) > 0 and m["target"][0] == "dimension":
+                    has_stage = any(
+                        isinstance(t, dict) and "stage-number" in t
+                        for t in m["target"]
                     )
+                    if not has_stage:
+                        errors.append(
+                            f"Parameter '{m['parameter_id']}' missing stage-number (MBQL cards require this)"
+                        )
 
             source_table = None
             dq = card.get("dataset_query") or {}
