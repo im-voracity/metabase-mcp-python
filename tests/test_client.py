@@ -150,8 +150,10 @@ async def test_error_401_raises_auth_error(api_key_config: MetabaseConfig) -> No
         return_value=Response(401, text="Unauthorized")
     )
     async with MetabaseClient(api_key_config) as client:
-        with pytest.raises(MetabaseAuthError):
+        with pytest.raises(MetabaseAuthError) as exc_info:
             await client.get_databases()
+    assert "Unauthorized" not in str(exc_info.value)
+    assert "HTTP 401" in str(exc_info.value)
 
 
 @respx.mock
@@ -161,8 +163,10 @@ async def test_error_403_raises_auth_error(api_key_config: MetabaseConfig) -> No
         return_value=Response(403, text="Forbidden")
     )
     async with MetabaseClient(api_key_config) as client:
-        with pytest.raises(MetabaseAuthError):
+        with pytest.raises(MetabaseAuthError) as exc_info:
             await client.get_dashboards()
+    assert "Forbidden" not in str(exc_info.value)
+    assert "HTTP 403" in str(exc_info.value)
 
 
 @respx.mock
@@ -178,13 +182,16 @@ async def test_error_404_raises_not_found(api_key_config: MetabaseConfig) -> Non
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_error_500_raises_api_error(api_key_config: MetabaseConfig) -> None:
+async def test_error_500_does_not_leak_response_body(api_key_config: MetabaseConfig) -> None:
+    sensitive_body = '{"message":"User admin@corp.com lacks permission"}'
     respx.get("http://localhost:3000/api/database").mock(
-        return_value=Response(500, text="Internal Server Error")
+        return_value=Response(500, text=sensitive_body)
     )
     async with MetabaseClient(api_key_config) as client:
-        with pytest.raises(MetabaseAPIError):
+        with pytest.raises(MetabaseAPIError) as exc_info:
             await client.get_databases()
+    assert "admin@corp.com" not in str(exc_info.value)
+    assert "HTTP 500" in str(exc_info.value)
 
 
 @respx.mock
