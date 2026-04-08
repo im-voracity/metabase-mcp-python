@@ -632,21 +632,27 @@ class MetabaseClient:
         )
         return await self._request("GET", f"/api/table/{id}/query_metadata", params=params)
 
-    async def get_field_by_name(self, table_id: int, column_name: str) -> Any:
-        metadata = await self.get_table_query_metadata(table_id)
-        fields = metadata.get("fields", [])
-
+    @staticmethod
+    def _find_field_by_name(
+        fields: list[dict[str, Any]], column_name: str
+    ) -> dict[str, Any] | None:
+        """Find a field by name or display_name (case-insensitive)."""
         lower_name = column_name.lower()
-        field = next(
+        return next(
             (
                 f
                 for f in fields
-                if (f.get("name", "").lower() == lower_name)
-                or (f.get("display_name", "").lower() == lower_name)
+                if f.get("name", "").lower() == lower_name
+                or f.get("display_name", "").lower() == lower_name
             ),
             None,
         )
 
+    async def get_field_by_name(self, table_id: int, column_name: str) -> Any:
+        metadata = await self.get_table_query_metadata(table_id)
+        fields = metadata.get("fields", [])
+
+        field = self._find_field_by_name(fields, column_name)
         if not field:
             available = [f.get("name") for f in fields[:20]]
             suffix = "..." if len(fields) > 20 else ""

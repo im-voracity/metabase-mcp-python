@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Replaced nested `if/elif` with guard clauses in `audit_dashboard_filters()` for readability (#8)
 - Extracted `_build_bool_params()` helper to eliminate duplicated optional parameter building in `client.py` (#9)
+- Extracted `_find_field_by_name()` static method from `get_field_by_name()` for testability (#10)
 
 ## [0.1.0] - 2026-04-08
 
