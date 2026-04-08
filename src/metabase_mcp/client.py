@@ -357,13 +357,18 @@ class MetabaseClient:
         return await self._request("GET", "/api/card/public")
 
     async def get_card_param_values(self, card_id: int, param_key: str) -> Any:
-        return await self._request("GET", f"/api/card/{card_id}/params/{param_key}/values")
+        return await self._request(
+            "GET", f"/api/card/{card_id}/params/{quote(param_key, safe='')}/values"
+        )
 
     async def search_card_param_values(
         self, card_id: int, param_key: str, query: str
     ) -> Any:
+        encoded_key = quote(param_key, safe="")
+        encoded_query = quote(query, safe="")
         return await self._request(
-            "GET", f"/api/card/{card_id}/params/{param_key}/search/{query}"
+            "GET",
+            f"/api/card/{card_id}/params/{encoded_key}/search/{encoded_query}",
         )
 
     async def get_card_param_remapping(
@@ -371,7 +376,7 @@ class MetabaseClient:
     ) -> Any:
         return await self._request(
             "GET",
-            f"/api/card/{card_id}/params/{param_key}/remapping",
+            f"/api/card/{card_id}/params/{quote(param_key, safe='')}/remapping",
             params={"value": value},
         )
 
@@ -386,7 +391,9 @@ class MetabaseClient:
         self, card_id: int, export_format: str, parameters: dict[str, Any] | None = None
     ) -> Any:
         return await self._request(
-            "POST", f"/api/card/{card_id}/query/{export_format}", json=parameters or {}
+            "POST",
+            f"/api/card/{card_id}/query/{quote(export_format, safe='')}",
+            json=parameters or {},
         )
 
     async def copy_card(self, card_id: int) -> Any:
@@ -452,7 +459,9 @@ class MetabaseClient:
         return await self._request("GET", f"/api/database/{id}/schemas")
 
     async def get_database_schema(self, id: int, schema: str) -> Any:
-        return await self._request("GET", f"/api/database/{id}/schema/{quote(schema)}")
+        return await self._request(
+            "GET", f"/api/database/{id}/schema/{quote(schema, safe='')}"
+        )
 
     async def sync_database_schema(self, id: int) -> Any:
         return await self._request("POST", f"/api/database/{id}/sync_schema")
@@ -555,7 +564,9 @@ class MetabaseClient:
             "query": query,
             "visualization_settings": visualization_settings or {},
         }
-        return await self._request("POST", f"/api/dataset/{export_format}", json=data)
+        return await self._request(
+            "POST", f"/api/dataset/{quote(export_format, safe='')}", json=data
+        )
 
     # ── Table operations ─────────────────────────────────────────────────
 
