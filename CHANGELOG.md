@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extracted `_build_bool_params()` helper to eliminate duplicated optional parameter building in `client.py` (#9)
 - Extracted `_find_field_by_name()` static method from `get_field_by_name()` for testability (#10)
 
+### Fixed
+
+- URL-encode string parameters interpolated in URL paths to prevent path traversal (#3)
+
 ## [0.1.0] - 2026-04-08
 
 ### Added
