@@ -23,6 +23,11 @@ from metabase_mcp.exceptions import (
 
 logger = logging.getLogger("metabase_mcp")
 
+
+def _build_bool_params(**kwargs: bool | None) -> dict[str, str]:
+    """Build query params dict from optional boolean values, excluding None."""
+    return {k: str(v).lower() for k, v in kwargs.items() if v is not None}
+
 # Configure logging to stderr in JSON-ish format
 if not logger.handlers:
     handler = logging.StreamHandler(sys.stderr)
@@ -581,13 +586,11 @@ class MetabaseClient:
         include_hidden_fields: bool | None = None,
         include_editable_data_model: bool | None = None,
     ) -> Any:
-        params: dict[str, str] = {}
-        if include_sensitive_fields is not None:
-            params["include_sensitive_fields"] = str(include_sensitive_fields).lower()
-        if include_hidden_fields is not None:
-            params["include_hidden_fields"] = str(include_hidden_fields).lower()
-        if include_editable_data_model is not None:
-            params["include_editable_data_model"] = str(include_editable_data_model).lower()
+        params = _build_bool_params(
+            include_sensitive_fields=include_sensitive_fields,
+            include_hidden_fields=include_hidden_fields,
+            include_editable_data_model=include_editable_data_model,
+        )
         return await self._request("GET", f"/api/table/{id}", params=params)
 
     async def update_table(self, id: int, update_data: dict[str, Any]) -> Any:
@@ -622,13 +625,11 @@ class MetabaseClient:
         include_hidden_fields: bool | None = None,
         include_editable_data_model: bool | None = None,
     ) -> Any:
-        params: dict[str, str] = {}
-        if include_sensitive_fields is not None:
-            params["include_sensitive_fields"] = str(include_sensitive_fields).lower()
-        if include_hidden_fields is not None:
-            params["include_hidden_fields"] = str(include_hidden_fields).lower()
-        if include_editable_data_model is not None:
-            params["include_editable_data_model"] = str(include_editable_data_model).lower()
+        params = _build_bool_params(
+            include_sensitive_fields=include_sensitive_fields,
+            include_hidden_fields=include_hidden_fields,
+            include_editable_data_model=include_editable_data_model,
+        )
         return await self._request("GET", f"/api/table/{id}/query_metadata", params=params)
 
     async def get_field_by_name(self, table_id: int, column_name: str) -> Any:
