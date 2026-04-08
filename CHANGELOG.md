@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - URL-encode string parameters interpolated in URL paths to prevent path traversal (#3)
+- Removed raw `response.text` from exception messages to prevent leaking sensitive data (#4)
 
 ## [0.1.0] - 2026-04-08
 

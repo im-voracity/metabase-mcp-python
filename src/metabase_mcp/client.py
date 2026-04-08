@@ -112,8 +112,9 @@ class MetabaseClient:
             raise MetabaseError(f"HTTP error: {method} {path}: {e}") from e
 
         if response.status_code in (401, 403):
+            logger.debug("Auth error response: %s", response.text)
             raise MetabaseAuthError(
-                f"Authentication failed: {response.text}",
+                f"Authentication failed: {method} {path} (HTTP {response.status_code})",
                 status_code=response.status_code,
             )
         if response.status_code == 404:
@@ -122,8 +123,9 @@ class MetabaseClient:
                 status_code=404,
             )
         if response.status_code >= 400:
+            logger.debug("API error response: %s", response.text)
             raise MetabaseAPIError(
-                f"API error: {response.text}",
+                f"API error: {method} {path} (HTTP {response.status_code})",
                 status_code=response.status_code,
             )
 
