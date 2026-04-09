@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Session token automatic refresh with TTL tracking and 401-based re-authentication in `MetabaseAuth` (#2)
+
 ### Changed
 
 - Replaced nested `if/elif` with guard clauses in `audit_dashboard_filters()` for readability (#8)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+
 import httpx
 import pytest
 import respx
@@ -52,15 +54,114 @@ async def test_get_databases_with_api_key(api_key_config: MetabaseConfig) -> Non
 
 def test_session_auth_sets_header(credential_config: MetabaseConfig) -> None:
     """Verify MetabaseAuth sets X-Metabase-Session header after login."""
+    import time
+
     from metabase_mcp.client import MetabaseAuth
 
     auth = MetabaseAuth(credential_config)
     auth._session_token = "session-token-123"
+    auth._token_obtained_at = time.monotonic()  # Token is fresh
 
     request = httpx.Request("GET", "http://localhost:3000/api/database")
     flow = auth.auth_flow(request)
     modified_request = next(flow)
     assert modified_request.headers["x-metabase-session"] == "session-token-123"
+
+
+def test_session_auth_acquires_token_when_expired(
+    credential_config: MetabaseConfig,
+) -> None:
+    """Verify MetabaseAuth acquires a new token when the current one is expired."""
+    from metabase_mcp.client import MetabaseAuth
+
+    auth = MetabaseAuth(credential_config)
+    # No token set → _is_token_expired() returns True
+
+    request = httpx.Request("GET", "http://localhost:3000/api/database")
+    flow = auth.auth_flow(request)
+
+    # First yield: login request
+    login_request = next(flow)
+    assert login_request.url == "http://localhost:3000/api/session"
+
+    # Send successful login response
+    login_response = Response(200, json={"id": "new-session-token"})
+    actual_request = flow.send(login_response)
+    assert actual_request.headers["x-metabase-session"] == "new-session-token"
+
+
+def test_session_auth_clears_token_on_401(
+    credential_config: MetabaseConfig,
+) -> None:
+    """Verify MetabaseAuth clears the session token when a 401 is received."""
+    import time
+
+    from metabase_mcp.client import MetabaseAuth
+
+    auth = MetabaseAuth(credential_config)
+    auth._session_token = "old-token"
+    auth._token_obtained_at = time.monotonic()
+
+    request = httpx.Request("GET", "http://localhost:3000/api/database")
+    flow = auth.auth_flow(request)
+
+    # First yield: the actual request with session header
+    actual_request = next(flow)
+    assert actual_request.headers["x-metabase-session"] == "old-token"
+
+    # Send 401 response → token should be cleared
+    with contextlib.suppress(StopIteration):
+        flow.send(Response(401, text="Unauthorized"))
+
+    assert auth._session_token is None
+    assert auth._token_obtained_at == 0.0
+
+
+def test_session_auth_raises_on_login_failure(
+    credential_config: MetabaseConfig,
+) -> None:
+    """Verify MetabaseAuth raises MetabaseAuthError when login fails."""
+    from metabase_mcp.client import MetabaseAuth
+
+    auth = MetabaseAuth(credential_config)
+
+    request = httpx.Request("GET", "http://localhost:3000/api/database")
+    flow = auth.auth_flow(request)
+
+    # First yield: login request
+    login_request = next(flow)
+    assert login_request.url == "http://localhost:3000/api/session"
+
+    # Send failed login response
+    with pytest.raises(MetabaseAuthError, match="Failed to authenticate"):
+        flow.send(Response(401, text="Bad credentials"))
+
+
+def test_session_auth_refreshes_before_expiry(
+    credential_config: MetabaseConfig,
+) -> None:
+    """Verify token is refreshed when approaching TTL (90% margin)."""
+    import time
+
+    from metabase_mcp.client import MetabaseAuth
+
+    auth = MetabaseAuth(credential_config)
+    auth._session_token = "stale-token"
+    # Set obtained_at far in the past to simulate expiration
+    auth._token_obtained_at = time.monotonic() - (
+        MetabaseAuth.TOKEN_TTL_SECONDS * MetabaseAuth.TOKEN_REFRESH_MARGIN + 1
+    )
+
+    request = httpx.Request("GET", "http://localhost:3000/api/database")
+    flow = auth.auth_flow(request)
+
+    # Should yield login request (not use stale token)
+    login_request = next(flow)
+    assert login_request.url == "http://localhost:3000/api/session"
+
+    # Complete login
+    actual_request = flow.send(Response(200, json={"id": "refreshed-token"}))
+    assert actual_request.headers["x-metabase-session"] == "refreshed-token"
 
 
 def test_api_key_auth_sets_header(api_key_config: MetabaseConfig) -> None:
