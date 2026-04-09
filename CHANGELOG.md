@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Session token automatic refresh with TTL tracking and 401-based re-authentication in `MetabaseAuth` (#2)
 - Comprehensive test suite: 190 tests with 84% coverage (up from 51%) (#6)
 - `pytest-cov` dev dependency and `--cov-fail-under=80` enforcement in CI (#6)
+- Portuguese (pt-BR) documentation: translated README, architecture guide, and tools reference (#11)
 
 ### Changed
 

@@ -1,3 +1,5 @@
+> **Language**: English | [Portugues (BR)](README.pt-BR.md)
+
 # metabase-mcp-python
 
 A Python [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for [Metabase](https://www.metabase.com/), enabling AI assistants to query databases, manage dashboards, and interact with your Metabase instance.
