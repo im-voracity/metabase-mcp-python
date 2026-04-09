@@ -20,7 +20,8 @@ async def test_list_collections(client: MetabaseClient) -> None:
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_create_and_get_collection(
-    client: MetabaseClient, test_collection: dict[str, Any],
+    client: MetabaseClient,
+    test_collection: dict[str, Any],
 ) -> None:
     """Verify the test collection was created and can be retrieved."""
     coll = await client.get_collection(test_collection["id"])
@@ -39,7 +40,8 @@ async def test_update_collection(client: MetabaseClient, test_collection: dict[s
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_get_collection_items(
-    client: MetabaseClient, test_collection: dict[str, Any],
+    client: MetabaseClient,
+    test_collection: dict[str, Any],
 ) -> None:
     items = await client.api_call("GET", f"/api/collection/{test_collection['id']}/items")
     assert items is not None

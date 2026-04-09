@@ -32,4 +32,4 @@ jobs:
         run: uv run mypy src/
 
       - name: Tests
-        run: uv run pytest tests/ --ignore=tests/integration -v
+        run: uv run pytest tests/ --ignore=tests/integration -v --cov=metabase_mcp --cov-report=term-missing --cov-fail-under=80

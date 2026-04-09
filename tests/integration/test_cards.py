@@ -25,18 +25,20 @@ async def test_card_crud(
 ) -> None:
     """Full CRUD cycle for a card."""
     # Create
-    card = await client.create_card({
-        "name": "Test Card",
-        "description": "Created by integration test",
-        "dataset_query": {
-            "type": "native",
-            "native": {"query": "SELECT 1 AS test_val"},
-            "database": sample_database_id,
-        },
-        "display": "table",
-        "visualization_settings": {},
-        "collection_id": test_collection["id"],
-    })
+    card = await client.create_card(
+        {
+            "name": "Test Card",
+            "description": "Created by integration test",
+            "dataset_query": {
+                "type": "native",
+                "native": {"query": "SELECT 1 AS test_val"},
+                "database": sample_database_id,
+            },
+            "display": "table",
+            "visualization_settings": {},
+            "collection_id": test_collection["id"],
+        }
+    )
     assert card["name"] == "Test Card"
     card_id = card["id"]
 
@@ -66,17 +68,19 @@ async def test_execute_card_query(
     sample_database_id: int,
 ) -> None:
     """Test executing a card's query."""
-    card = await client.create_card({
-        "name": "Query Test Card",
-        "dataset_query": {
-            "type": "native",
-            "native": {"query": "SELECT 42 AS answer"},
-            "database": sample_database_id,
-        },
-        "display": "table",
-        "visualization_settings": {},
-        "collection_id": test_collection["id"],
-    })
+    card = await client.create_card(
+        {
+            "name": "Query Test Card",
+            "dataset_query": {
+                "type": "native",
+                "native": {"query": "SELECT 42 AS answer"},
+                "database": sample_database_id,
+            },
+            "display": "table",
+            "visualization_settings": {},
+            "collection_id": test_collection["id"],
+        }
+    )
 
     try:
         result = await client.execute_card(card["id"])
