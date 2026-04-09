@@ -219,3 +219,27 @@ async def test_execute_card(api_key_config: MetabaseConfig) -> None:
     async with MetabaseClient(api_key_config) as client:
         result = await client.execute_card(1)
     assert result["data"]["rows"] == [[1]]
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_url_encodes_string_path_params(api_key_config: MetabaseConfig) -> None:
+    """Verify that string parameters in URL paths are properly encoded."""
+    route = respx.get(
+        "http://localhost:3000/api/card/1/params/my%20key/search/foo%2Fbar"
+    ).mock(return_value=Response(200, json={"values": []}))
+    async with MetabaseClient(api_key_config) as client:
+        await client.search_card_param_values(1, "my key", "foo/bar")
+    assert route.called
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_url_encodes_schema_param(api_key_config: MetabaseConfig) -> None:
+    """Verify that schema name with special chars is encoded in path."""
+    route = respx.get(
+        "http://localhost:3000/api/database/1/schema/public%2Ftest"
+    ).mock(return_value=Response(200, json=[]))
+    async with MetabaseClient(api_key_config) as client:
+        await client.get_database_schema(1, "public/test")
+    assert route.called
