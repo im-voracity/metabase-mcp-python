@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extracted `_build_bool_params()` helper to eliminate duplicated optional parameter building in `client.py` (#9)
 - Extracted `_find_field_by_name()` static method from `get_field_by_name()` for testability (#10)
 - Removed repetitive `try/except RuntimeError` boilerplate from all tool functions in `table.py` and `additional.py` (#5)
+- Decomposed `get_dashboard_queries()` into focused helpers: `_resolve_field_ref`, `_resolve_mbql`, `_process_dashcard` (#7)
 
 ### Fixed
 
