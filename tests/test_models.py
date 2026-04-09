@@ -94,8 +94,16 @@ def test_query_result_model() -> None:
 def test_all_models_accept_none() -> None:
     """All models should work with no arguments (all fields optional)."""
     all_models = [
-        Dashboard, DashboardCard, Card, Database, Table,
-        Field, Collection, User, PermissionGroup, QueryResult,
+        Dashboard,
+        DashboardCard,
+        Card,
+        Database,
+        Table,
+        Field,
+        Collection,
+        User,
+        PermissionGroup,
+        QueryResult,
     ]
     for model_cls in all_models:
         instance = model_cls()

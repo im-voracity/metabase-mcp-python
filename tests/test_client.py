@@ -14,6 +14,7 @@ from metabase_mcp.config import MetabaseConfig
 from metabase_mcp.exceptions import (
     MetabaseAPIError,
     MetabaseAuthError,
+    MetabaseError,
     MetabaseNotFoundError,
 )
 
@@ -191,9 +192,7 @@ async def test_get_dashboard(api_key_config: MetabaseConfig) -> None:
 @pytest.mark.asyncio
 async def test_create_dashboard(api_key_config: MetabaseConfig) -> None:
     payload = {"id": 2, "name": "New Dashboard"}
-    respx.post("http://localhost:3000/api/dashboard").mock(
-        return_value=Response(200, json=payload)
-    )
+    respx.post("http://localhost:3000/api/dashboard").mock(return_value=Response(200, json=payload))
     async with MetabaseClient(api_key_config) as client:
         result = await client.create_dashboard({"name": "New Dashboard"})
     assert result["id"] == 2
@@ -213,9 +212,7 @@ async def test_update_card(api_key_config: MetabaseConfig) -> None:
 @respx.mock
 @pytest.mark.asyncio
 async def test_delete_card_hard(api_key_config: MetabaseConfig) -> None:
-    respx.delete("http://localhost:3000/api/card/3").mock(
-        return_value=Response(204)
-    )
+    respx.delete("http://localhost:3000/api/card/3").mock(return_value=Response(204))
     async with MetabaseClient(api_key_config) as client:
         result = await client.delete_card(3, hard_delete=True)
     assert result is None
@@ -298,9 +295,7 @@ async def test_error_500_does_not_leak_response_body(api_key_config: MetabaseCon
 @respx.mock
 @pytest.mark.asyncio
 async def test_empty_response_returns_none(api_key_config: MetabaseConfig) -> None:
-    respx.delete("http://localhost:3000/api/card/1").mock(
-        return_value=Response(204)
-    )
+    respx.delete("http://localhost:3000/api/card/1").mock(return_value=Response(204))
     async with MetabaseClient(api_key_config) as client:
         result = await client.delete_card(1, hard_delete=True)
     assert result is None
@@ -331,11 +326,281 @@ async def test_execute_card(api_key_config: MetabaseConfig) -> None:
 
 @respx.mock
 @pytest.mark.asyncio
+async def test_request_timeout_raises_metabase_error(api_key_config: MetabaseConfig) -> None:
+    """Verify TimeoutException is wrapped in MetabaseError."""
+    respx.get("http://localhost:3000/api/database").mock(
+        side_effect=httpx.TimeoutException("timed out")
+    )
+    async with MetabaseClient(api_key_config) as client:
+        with pytest.raises(MetabaseError, match="Request timed out"):
+            await client.get_databases()
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_request_http_error_raises_metabase_error(api_key_config: MetabaseConfig) -> None:
+    """Verify generic HTTPError is wrapped in MetabaseError."""
+    respx.get("http://localhost:3000/api/database").mock(
+        side_effect=httpx.HTTPError("connection reset")
+    )
+    async with MetabaseClient(api_key_config) as client:
+        with pytest.raises(MetabaseError, match="HTTP error"):
+            await client.get_databases()
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_field_by_name_found(api_key_config: MetabaseConfig) -> None:
+    """Verify get_field_by_name returns field info when found."""
+    metadata = {
+        "fields": [
+            {"id": 10, "name": "user_id", "display_name": "User ID", "base_type": "type/Integer"},
+            {"id": 11, "name": "email", "display_name": "Email", "base_type": "type/Text"},
+        ]
+    }
+    respx.get("http://localhost:3000/api/table/1/query_metadata").mock(
+        return_value=Response(200, json=metadata)
+    )
+    async with MetabaseClient(api_key_config) as client:
+        result = await client.get_field_by_name(1, "email")
+    assert result["field_id"] == 11
+    assert result["name"] == "email"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_field_by_name_case_insensitive(api_key_config: MetabaseConfig) -> None:
+    """Verify get_field_by_name matches case-insensitively."""
+    metadata = {
+        "fields": [
+            {"id": 10, "name": "USER_ID", "display_name": "User ID", "base_type": "type/Integer"}
+        ]
+    }
+    respx.get("http://localhost:3000/api/table/1/query_metadata").mock(
+        return_value=Response(200, json=metadata)
+    )
+    async with MetabaseClient(api_key_config) as client:
+        result = await client.get_field_by_name(1, "user_id")
+    assert result["field_id"] == 10
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_field_by_name_not_found(api_key_config: MetabaseConfig) -> None:
+    """Verify get_field_by_name raises MetabaseError when field not found."""
+    metadata = {"fields": [{"id": 10, "name": "user_id"}]}
+    respx.get("http://localhost:3000/api/table/1/query_metadata").mock(
+        return_value=Response(200, json=metadata)
+    )
+    async with MetabaseClient(api_key_config) as client:
+        with pytest.raises(MetabaseError, match="not found"):
+            await client.get_field_by_name(1, "nonexistent")
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_field_by_name_truncates_long_list(api_key_config: MetabaseConfig) -> None:
+    """Verify error message truncates field list when >20 fields."""
+    fields = [{"id": i, "name": f"field_{i}"} for i in range(25)]
+    metadata = {"fields": fields}
+    respx.get("http://localhost:3000/api/table/1/query_metadata").mock(
+        return_value=Response(200, json=metadata)
+    )
+    async with MetabaseClient(api_key_config) as client:
+        with pytest.raises(MetabaseError, match=r"\.\.\."):
+            await client.get_field_by_name(1, "nonexistent")
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_add_card_to_dashboard(api_key_config: MetabaseConfig) -> None:
+    """Verify add_card_to_dashboard builds correct payload."""
+    respx.get("http://localhost:3000/api/dashboard/1").mock(
+        return_value=Response(200, json={"id": 1, "dashcards": [], "tabs": []})
+    )
+    respx.put("http://localhost:3000/api/dashboard/1").mock(
+        return_value=Response(200, json={"id": 1, "dashcards": [{"id": -1, "card_id": 5}]})
+    )
+    async with MetabaseClient(api_key_config) as client:
+        result = await client.add_card_to_dashboard(1, {"card_id": 5})
+    assert result["dashcards"][0]["card_id"] == 5
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_update_dashcard_not_found(api_key_config: MetabaseConfig) -> None:
+    """Verify update_dashcard raises error when dashcard not found."""
+    respx.get("http://localhost:3000/api/dashboard/1").mock(
+        return_value=Response(200, json={"id": 1, "dashcards": [{"id": 10}]})
+    )
+    async with MetabaseClient(api_key_config) as client:
+        with pytest.raises(MetabaseError, match="not found"):
+            await client.update_dashcard(1, 999, {"size_x": 6})
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_remove_cards_from_dashboard(api_key_config: MetabaseConfig) -> None:
+    """Verify remove_cards_from_dashboard filters out specified dashcard IDs."""
+    respx.get("http://localhost:3000/api/dashboard/1").mock(
+        return_value=Response(
+            200,
+            json={
+                "id": 1,
+                "dashcards": [{"id": 10}, {"id": 20}, {"id": 30}],
+            },
+        )
+    )
+    route = respx.put("http://localhost:3000/api/dashboard/1").mock(
+        return_value=Response(200, json={"id": 1, "dashcards": [{"id": 10}]})
+    )
+    async with MetabaseClient(api_key_config) as client:
+        await client.remove_cards_from_dashboard(1, [20, 30])
+    sent = route.calls[0].request.content
+    import json as _json
+
+    body = _json.loads(sent)
+    # Only dashcard 10 should remain
+    assert len([dc for dc in body["dashcards"] if dc["id"] not in [20, 30]]) == 1
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_delete_dashboard_soft(api_key_config: MetabaseConfig) -> None:
+    """Verify soft delete archives the dashboard."""
+    route = respx.put("http://localhost:3000/api/dashboard/1").mock(
+        return_value=Response(200, json={"id": 1, "archived": True})
+    )
+    async with MetabaseClient(api_key_config) as client:
+        result = await client.delete_dashboard(1)
+    assert result["archived"] is True
+    assert route.called
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_delete_dashboard_hard(api_key_config: MetabaseConfig) -> None:
+    """Verify hard delete sends DELETE request."""
+    route = respx.delete("http://localhost:3000/api/dashboard/1").mock(return_value=Response(204))
+    async with MetabaseClient(api_key_config) as client:
+        result = await client.delete_dashboard(1, hard_delete=True)
+    assert result is None
+    assert route.called
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_copy_dashboard(api_key_config: MetabaseConfig) -> None:
+    respx.post("http://localhost:3000/api/dashboard/1/copy").mock(
+        return_value=Response(200, json={"id": 2, "name": "Copy"})
+    )
+    async with MetabaseClient(api_key_config) as client:
+        result = await client.copy_dashboard(1, {"name": "Copy"})
+    assert result["name"] == "Copy"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_collections_archived(api_key_config: MetabaseConfig) -> None:
+    route = respx.get("http://localhost:3000/api/collection").mock(
+        return_value=Response(200, json=[])
+    )
+    async with MetabaseClient(api_key_config) as client:
+        await client.get_collections(archived=True)
+    assert "archived=true" in str(route.calls[0].request.url)
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_create_collection(api_key_config: MetabaseConfig) -> None:
+    respx.post("http://localhost:3000/api/collection").mock(
+        return_value=Response(200, json={"id": 5, "name": "New"})
+    )
+    async with MetabaseClient(api_key_config) as client:
+        result = await client.create_collection({"name": "New"})
+    assert result["name"] == "New"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_users(api_key_config: MetabaseConfig) -> None:
+    respx.get("http://localhost:3000/api/user").mock(return_value=Response(200, json=[{"id": 1}]))
+    async with MetabaseClient(api_key_config) as client:
+        result = await client.get_users()
+    assert len(result) == 1
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_execute_query_with_params(api_key_config: MetabaseConfig) -> None:
+    route = respx.post("http://localhost:3000/api/dataset").mock(
+        return_value=Response(200, json={"data": {"rows": []}})
+    )
+    async with MetabaseClient(api_key_config) as client:
+        await client.execute_query(1, "SELECT ?", [42])
+    import json as _json
+
+    body = _json.loads(route.calls[0].request.content)
+    assert body["parameters"] == [42]
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_append_csv_to_table(api_key_config: MetabaseConfig) -> None:
+    route = respx.post("http://localhost:3000/api/table/1/append-csv").mock(
+        return_value=Response(200, json={"status": "ok"})
+    )
+    async with MetabaseClient(api_key_config) as client:
+        result = await client.append_csv_to_table(1, "data.csv", "a,b\n1,2")
+    assert result["status"] == "ok"
+    assert route.called
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_replace_table_csv(api_key_config: MetabaseConfig) -> None:
+    route = respx.post("http://localhost:3000/api/table/1/replace-csv").mock(
+        return_value=Response(200, json={"status": "ok"})
+    )
+    async with MetabaseClient(api_key_config) as client:
+        result = await client.replace_table_csv(1, "a,b\n1,2")
+    assert result["status"] == "ok"
+    assert route.called
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_api_call_with_data(api_key_config: MetabaseConfig) -> None:
+    route = respx.post("http://localhost:3000/api/custom/endpoint").mock(
+        return_value=Response(200, json={"ok": True})
+    )
+    async with MetabaseClient(api_key_config) as client:
+        result = await client.api_call("POST", "/api/custom/endpoint", {"key": "val"})
+    assert result["ok"] is True
+    import json as _json
+
+    body = _json.loads(route.calls[0].request.content)
+    assert body["key"] == "val"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_api_call_without_data(api_key_config: MetabaseConfig) -> None:
+    respx.get("http://localhost:3000/api/custom/endpoint").mock(
+        return_value=Response(200, json={"ok": True})
+    )
+    async with MetabaseClient(api_key_config) as client:
+        result = await client.api_call("GET", "/api/custom/endpoint")
+    assert result["ok"] is True
+
+
+@respx.mock
+@pytest.mark.asyncio
 async def test_url_encodes_string_path_params(api_key_config: MetabaseConfig) -> None:
     """Verify that string parameters in URL paths are properly encoded."""
-    route = respx.get(
-        "http://localhost:3000/api/card/1/params/my%20key/search/foo%2Fbar"
-    ).mock(return_value=Response(200, json={"values": []}))
+    route = respx.get("http://localhost:3000/api/card/1/params/my%20key/search/foo%2Fbar").mock(
+        return_value=Response(200, json={"values": []})
+    )
     async with MetabaseClient(api_key_config) as client:
         await client.search_card_param_values(1, "my key", "foo/bar")
     assert route.called
@@ -345,9 +610,9 @@ async def test_url_encodes_string_path_params(api_key_config: MetabaseConfig) ->
 @pytest.mark.asyncio
 async def test_url_encodes_schema_param(api_key_config: MetabaseConfig) -> None:
     """Verify that schema name with special chars is encoded in path."""
-    route = respx.get(
-        "http://localhost:3000/api/database/1/schema/public%2Ftest"
-    ).mock(return_value=Response(200, json=[]))
+    route = respx.get("http://localhost:3000/api/database/1/schema/public%2Ftest").mock(
+        return_value=Response(200, json=[])
+    )
     async with MetabaseClient(api_key_config) as client:
         await client.get_database_schema(1, "public/test")
     assert route.called

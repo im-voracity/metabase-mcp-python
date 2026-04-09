@@ -21,11 +21,13 @@ async def test_list_dashboards(client: MetabaseClient) -> None:
 async def test_dashboard_crud(client: MetabaseClient, test_collection: dict[str, Any]) -> None:
     """Full CRUD cycle for a dashboard."""
     # Create
-    dashboard = await client.create_dashboard({
-        "name": "Test Dashboard",
-        "description": "Created by integration test",
-        "collection_id": test_collection["id"],
-    })
+    dashboard = await client.create_dashboard(
+        {
+            "name": "Test Dashboard",
+            "description": "Created by integration test",
+            "collection_id": test_collection["id"],
+        }
+    )
     assert dashboard["name"] == "Test Dashboard"
     dashboard_id = dashboard["id"]
 
@@ -59,33 +61,40 @@ async def test_dashboard_with_card(
 ) -> None:
     """Test adding a card to a dashboard."""
     # Create a card first
-    card = await client.create_card({
-        "name": "Test Card for Dashboard",
-        "dataset_query": {
-            "type": "native",
-            "native": {"query": "SELECT 1"},
-            "database": sample_database_id,
-        },
-        "display": "table",
-        "visualization_settings": {},
-        "collection_id": test_collection["id"],
-    })
+    card = await client.create_card(
+        {
+            "name": "Test Card for Dashboard",
+            "dataset_query": {
+                "type": "native",
+                "native": {"query": "SELECT 1"},
+                "database": sample_database_id,
+            },
+            "display": "table",
+            "visualization_settings": {},
+            "collection_id": test_collection["id"],
+        }
+    )
 
     # Create dashboard
-    dashboard = await client.create_dashboard({
-        "name": "Dashboard with Card",
-        "collection_id": test_collection["id"],
-    })
+    dashboard = await client.create_dashboard(
+        {
+            "name": "Dashboard with Card",
+            "collection_id": test_collection["id"],
+        }
+    )
 
     try:
         # Add card to dashboard
-        result = await client.add_card_to_dashboard(dashboard["id"], {
-            "card_id": card["id"],
-            "row": 0,
-            "col": 0,
-            "size_x": 12,
-            "size_y": 8,
-        })
+        result = await client.add_card_to_dashboard(
+            dashboard["id"],
+            {
+                "card_id": card["id"],
+                "row": 0,
+                "col": 0,
+                "size_x": 12,
+                "size_y": 8,
+            },
+        )
         assert result is not None
 
         # Verify card is in dashboard
