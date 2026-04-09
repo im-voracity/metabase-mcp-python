@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import time
 from typing import Any
 from urllib.parse import quote
 
@@ -41,39 +42,67 @@ class MetabaseAuth(httpx.Auth):
 
     This replaces the axios request interceptor from the TypeScript version.
     The auth_flow() generator can yield sub-requests for session token acquisition.
+
+    Session tokens are automatically refreshed when they approach expiration
+    or when a 401 response is received.
     """
+
+    TOKEN_TTL_SECONDS = 3600  # Metabase default session expiry: ~1 hour
+    TOKEN_REFRESH_MARGIN = 0.9  # Refresh at 90% of TTL
 
     def __init__(self, config: MetabaseConfig) -> None:
         self._config = config
         self._session_token: str | None = None
+        self._token_obtained_at: float = 0.0
+
+    def _is_token_expired(self) -> bool:
+        if not self._session_token:
+            return True
+        elapsed = time.monotonic() - self._token_obtained_at
+        return elapsed > self.TOKEN_TTL_SECONDS * self.TOKEN_REFRESH_MARGIN
+
+    def _clear_token(self) -> None:
+        self._session_token = None
+        self._token_obtained_at = 0.0
+
+    def _acquire_token(self, request: httpx.Request) -> httpx.Request:
+        """Build a login request to acquire a session token."""
+        return httpx.Request(
+            "POST",
+            str(request.url).split("/api/")[0] + "/api/session",
+            json={
+                "username": self._config.username,
+                "password": self._config.password,
+            },
+            headers={"Content-Type": "application/json"},
+        )
 
     def auth_flow(self, request: httpx.Request) -> Any:
         if self._config.api_key:
             request.headers["X-API-Key"] = self._config.api_key
             yield request
-        else:
-            if not self._session_token:
-                # Yield a login request to get session token
-                login_request = httpx.Request(
-                    "POST",
-                    str(request.url).split("/api/")[0] + "/api/session",
-                    json={
-                        "username": self._config.username,
-                        "password": self._config.password,
-                    },
-                    headers={"Content-Type": "application/json"},
-                )
-                login_response = yield login_request
-                if login_response.status_code != 200:
-                    raise MetabaseAuthError(
-                        "Failed to authenticate with Metabase",
-                        status_code=login_response.status_code,
-                    )
-                self._session_token = login_response.json()["id"]
-                logger.info("Successfully authenticated with Metabase via session token")
+            return
 
-            request.headers["X-Metabase-Session"] = self._session_token
-            yield request
+        if self._is_token_expired():
+            login_response = yield self._acquire_token(request)
+            if login_response.status_code != 200:
+                self._clear_token()
+                raise MetabaseAuthError(
+                    "Failed to authenticate with Metabase",
+                    status_code=login_response.status_code,
+                )
+            self._session_token = login_response.json()["id"]
+            self._token_obtained_at = time.monotonic()
+            logger.info("Session token acquired")
+
+        assert self._session_token is not None  # guaranteed by _is_token_expired check
+        request.headers["X-Metabase-Session"] = self._session_token
+        response = yield request
+
+        # If we get 401, clear token so next request re-authenticates
+        if response.status_code == 401:
+            logger.debug("Received 401, clearing session token for re-auth")
+            self._clear_token()
 
 
 class MetabaseClient:
