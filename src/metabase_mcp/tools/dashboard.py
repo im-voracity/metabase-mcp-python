@@ -13,6 +13,116 @@ from metabase_mcp.client import MetabaseClient
 from metabase_mcp.validators import JsonParsed, parse_if_string
 
 
+def _resolve_field_ref(ref: Any, field_lookup: dict[int, dict[str, str]]) -> Any:
+    """Resolve a single MBQL field reference to a human-readable name."""
+    if not isinstance(ref, list):
+        return ref
+    if len(ref) >= 2 and ref[0] == "field" and isinstance(ref[1], int):
+        info = field_lookup.get(ref[1])
+        field_name = info["name"] if info else f"field_{ref[1]}"
+        if len(ref) > 2 and isinstance(ref[2], dict):
+            return ["field", field_name, ref[2]]
+        return ["field", field_name]
+    return [_resolve_field_ref(item, field_lookup) for item in ref]
+
+
+def _resolve_mbql(
+    query: dict[str, Any],
+    table_names: dict[int, str],
+    field_lookup: dict[int, dict[str, str]],
+) -> dict[str, Any]:
+    """Resolve an entire MBQL query, replacing IDs with human-readable names."""
+    if not query:
+        return query
+    resolved: dict[str, Any] = {}
+
+    src = query.get("source-table")
+    if isinstance(src, int):
+        resolved["source-table"] = table_names.get(src, f"table_{src}")
+
+    for key in ("aggregation", "breakout", "order-by"):
+        if query.get(key):
+            resolved[key] = [_resolve_field_ref(item, field_lookup) for item in query[key]]
+
+    if query.get("filter"):
+        resolved["filter"] = _resolve_field_ref(query["filter"], field_lookup)
+
+    if query.get("joins"):
+        resolved["joins"] = [
+            {
+                **j,
+                "source-table": table_names.get(j.get("source-table"), j.get("source-table"))
+                if isinstance(j.get("source-table"), int)
+                else j.get("source-table"),
+                "condition": _resolve_field_ref(j.get("condition"), field_lookup),
+            }
+            for j in query["joins"]
+        ]
+
+    if query.get("fields"):
+        resolved["fields"] = [_resolve_field_ref(f, field_lookup) for f in query["fields"]]
+    if query.get("limit"):
+        resolved["limit"] = query["limit"]
+    if query.get("expressions"):
+        resolved["expressions"] = {
+            name: _resolve_field_ref(expr, field_lookup)
+            for name, expr in query["expressions"].items()
+        }
+    return resolved
+
+
+def _process_dashcard(
+    dc: dict[str, Any],
+    tab_lookup: dict[int, str],
+    table_names: dict[int, str],
+    field_lookup: dict[int, dict[str, str]],
+) -> dict[str, Any]:
+    """Process a single dashcard into a query summary dict."""
+    card = dc.get("card") or {}
+    dataset_query = card.get("dataset_query") or {}
+    tab_id = dc.get("dashboard_tab_id")
+    tab_name = tab_lookup.get(tab_id) if tab_id else None
+
+    # Virtual/text cards
+    if not dc.get("card_id"):
+        viz = dc.get("visualization_settings") or {}
+        return {
+            "dashcard_id": dc["id"],
+            "card_id": None,
+            "card_name": "(virtual card)",
+            "tab": tab_name,
+            "query_type": "virtual",
+            "text": viz.get("text"),
+        }
+
+    # Native SQL cards
+    if dataset_query.get("type") == "native":
+        native = dataset_query.get("native") or {}
+        template_tags = native.get("template-tags") or {}
+        return {
+            "dashcard_id": dc["id"],
+            "card_id": dc.get("card_id"),
+            "card_name": card.get("name") or "(unnamed)",
+            "tab": tab_name,
+            "query_type": "native",
+            "database_id": dataset_query.get("database"),
+            "sql": native.get("query"),
+            "template_tags": list(template_tags.keys()) if isinstance(template_tags, dict) else [],
+        }
+
+    # MBQL cards
+    q = dataset_query.get("query") or {}
+    return {
+        "dashcard_id": dc["id"],
+        "card_id": dc.get("card_id"),
+        "card_name": card.get("name") or "(unnamed)",
+        "tab": tab_name,
+        "query_type": "mbql",
+        "database_id": dataset_query.get("database"),
+        "mbql": _resolve_mbql(q, table_names, field_lookup),
+    }
+
+
 def register_dashboard_tools(mcp: FastMCP, client: MetabaseClient) -> None:
     """Register all dashboard-related MCP tools."""
 
@@ -133,14 +243,12 @@ def register_dashboard_tools(mcp: FastMCP, client: MetabaseClient) -> None:
         dashcards = dashboard.get("dashcards", []) if isinstance(dashboard, dict) else []
         tabs = dashboard.get("tabs", []) if isinstance(dashboard, dict) else []
 
-        # Build tab lookup
         tab_lookup: dict[int, str] = {t["id"]: t["name"] for t in tabs}
 
-        # Collect all unique table IDs we need to resolve
+        # Collect all unique table IDs from MBQL queries
         table_ids: set[int] = set()
         for dc in dashcards:
-            card = dc.get("card") or {}
-            query = (card.get("dataset_query") or {}).get("query") or {}
+            query = ((dc.get("card") or {}).get("dataset_query") or {}).get("query") or {}
             src = query.get("source-table")
             if isinstance(src, int):
                 table_ids.add(src)
@@ -149,135 +257,24 @@ def register_dashboard_tools(mcp: FastMCP, client: MetabaseClient) -> None:
                 if isinstance(jsrc, int):
                     table_ids.add(jsrc)
 
-        # Fetch metadata for all tables to resolve field IDs
-        table_metadata: dict[int, Any] = {}
+        # Fetch metadata and build lookups
         table_names: dict[int, str] = {}
+        field_lookup: dict[int, dict[str, str]] = {}
         for tid in table_ids:
             try:
                 metadata = await client.get_table_query_metadata(tid)
-                table_metadata[tid] = metadata
                 schema = metadata.get("schema") or ""
                 tname = metadata.get("name") or f"table_{tid}"
                 table_names[tid] = f"{schema}.{tname}" if schema else tname
+                for f in metadata.get("fields") or []:
+                    field_lookup[f["id"]] = {"name": f["name"], "table": table_names[tid]}
             except Exception:
                 table_names[tid] = f"unknown_table_{tid}"
 
-        # Build field ID to name lookup across all tables
-        field_lookup: dict[int, dict[str, str]] = {}
-        for tid, metadata in table_metadata.items():
-            fields = metadata.get("fields") or []
-            tname = table_names[tid]
-            for f in fields:
-                field_lookup[f["id"]] = {"name": f["name"], "table": tname}
-
-        # Helper to resolve field references in MBQL
-        def resolve_field_ref(ref: Any) -> Any:
-            if not isinstance(ref, list):
-                return ref
-            if len(ref) >= 2 and ref[0] == "field" and isinstance(ref[1], int):
-                info = field_lookup.get(ref[1])
-                field_name = info["name"] if info else f"field_{ref[1]}"
-                if len(ref) > 2 and isinstance(ref[2], dict):
-                    return ["field", field_name, ref[2]]
-                return ["field", field_name]
-            return [resolve_field_ref(item) for item in ref]
-
-        # Helper to resolve entire MBQL query
-        def resolve_mbql(query: dict[str, Any]) -> dict[str, Any]:
-            if not query:
-                return query
-            resolved: dict[str, Any] = {}
-
-            src = query.get("source-table")
-            if isinstance(src, int):
-                resolved["source-table"] = table_names.get(src, f"table_{src}")
-
-            if query.get("aggregation"):
-                resolved["aggregation"] = [resolve_field_ref(a) for a in query["aggregation"]]
-            if query.get("breakout"):
-                resolved["breakout"] = [resolve_field_ref(b) for b in query["breakout"]]
-            if query.get("filter"):
-                resolved["filter"] = resolve_field_ref(query["filter"])
-            if query.get("order-by"):
-                resolved["order-by"] = [resolve_field_ref(o) for o in query["order-by"]]
-
-            if query.get("joins"):
-                resolved_joins = []
-                for j in query["joins"]:
-                    rj = {**j}
-                    jsrc = j.get("source-table")
-                    if isinstance(jsrc, int):
-                        rj["source-table"] = table_names.get(jsrc, f"table_{jsrc}")
-                    rj["condition"] = resolve_field_ref(j.get("condition"))
-                    resolved_joins.append(rj)
-                resolved["joins"] = resolved_joins
-
-            if query.get("fields"):
-                resolved["fields"] = [resolve_field_ref(f) for f in query["fields"]]
-            if query.get("limit"):
-                resolved["limit"] = query["limit"]
-            if query.get("expressions"):
-                resolved["expressions"] = {
-                    name: resolve_field_ref(expr)
-                    for name, expr in query["expressions"].items()
-                }
-            return resolved
-
-        # Process each card
-        cards_out = []
-        for dc in dashcards:
-            card = dc.get("card") or {}
-            dataset_query = card.get("dataset_query") or {}
-            tab_name = tab_lookup.get(dc.get("dashboard_tab_id")) if dc.get("dashboard_tab_id") else None
-
-            # Virtual/text cards
-            if not dc.get("card_id"):
-                viz = dc.get("visualization_settings") or {}
-                cards_out.append(
-                    {
-                        "dashcard_id": dc["id"],
-                        "card_id": None,
-                        "card_name": "(virtual card)",
-                        "tab": tab_name,
-                        "query_type": "virtual",
-                        "text": viz.get("text"),
-                    }
-                )
-                continue
-
-            # Native SQL cards
-            if dataset_query.get("type") == "native":
-                native = dataset_query.get("native") or {}
-                template_tags = native.get("template-tags") or {}
-                cards_out.append(
-                    {
-                        "dashcard_id": dc["id"],
-                        "card_id": dc.get("card_id"),
-                        "card_name": card.get("name") or "(unnamed)",
-                        "tab": tab_name,
-                        "query_type": "native",
-                        "database_id": dataset_query.get("database"),
-                        "sql": native.get("query"),
-                        "template_tags": list(template_tags.keys()) if isinstance(template_tags, dict) else [],
-                    }
-                )
-                continue
-
-            # MBQL cards
-            q = dataset_query.get("query") or {}
-            cards_out.append(
-                {
-                    "dashcard_id": dc["id"],
-                    "card_id": dc.get("card_id"),
-                    "card_name": card.get("name") or "(unnamed)",
-                    "tab": tab_name,
-                    "query_type": "mbql",
-                    "database_id": dataset_query.get("database"),
-                    "mbql": resolve_mbql(q),
-                }
-            )
-
-        tables_used = sorted(set(table_names.values()))
+        cards_out = [
+            _process_dashcard(dc, tab_lookup, table_names, field_lookup)
+            for dc in dashcards
+        ]
 
         return json.dumps(
             {
@@ -285,7 +282,7 @@ def register_dashboard_tools(mcp: FastMCP, client: MetabaseClient) -> None:
                 "dashboard_name": dashboard.get("name") if isinstance(dashboard, dict) else None,
                 "total_cards": len(dashcards),
                 "cards": cards_out,
-                "tables_used": tables_used,
+                "tables_used": sorted(set(table_names.values())),
             },
             indent=2,
         )
