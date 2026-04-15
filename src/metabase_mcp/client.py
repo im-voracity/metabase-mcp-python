@@ -227,25 +227,7 @@ class MetabaseClient:
         if "dashboard_tab_id" in card_data:
             new_dashcard["dashboard_tab_id"] = card_data["dashboard_tab_id"]
 
-        cleaned = [
-            {
-                "id": dc["id"],
-                "card_id": dc.get("card_id"),
-                "row": dc.get("row", 0),
-                "col": dc.get("col", 0),
-                "size_x": dc.get("size_x", 12),
-                "size_y": dc.get("size_y", 8),
-                "series": dc.get("series", []),
-                "visualization_settings": dc.get("visualization_settings", {}),
-                "parameter_mappings": dc.get("parameter_mappings", []),
-                **(
-                    {"dashboard_tab_id": dc["dashboard_tab_id"]}
-                    if "dashboard_tab_id" in dc
-                    else {}
-                ),
-            }
-            for dc in existing_dashcards
-        ]
+        cleaned = self._clean_dashcards(existing_dashcards)
 
         return await self._request(
             "PUT",
@@ -311,6 +293,95 @@ class MetabaseClient:
         return await self._request(
             "POST", f"/api/dashboard/save/collection/{parent_collection_id}", json=dashboard
         )
+
+    # ── Dashboard tab operations ──────────────────────────────────────────
+    #
+    # Metabase manages tabs atomically through PUT /api/dashboard/:id
+    # with the full tabs + dashcards arrays. There are no dedicated
+    # tab sub-resource endpoints.
+
+    async def create_dashboard_tab(self, dashboard_id: int, name: str) -> Any:
+        dashboard = await self.get_dashboard(dashboard_id)
+        existing_tabs = dashboard.get("tabs", [])
+        existing_dashcards = dashboard.get("dashcards", [])
+        new_tab = {"id": -1, "name": name}
+        result = await self._request(
+            "PUT",
+            f"/api/dashboard/{dashboard_id}",
+            json={
+                "dashcards": self._clean_dashcards(existing_dashcards),
+                "tabs": [*existing_tabs, new_tab],
+            },
+        )
+        # Return only the newly created tab (last one with a new id)
+        existing_ids = {t["id"] for t in existing_tabs}
+        for tab in reversed(result.get("tabs", [])):
+            if tab["id"] not in existing_ids:
+                return tab
+        return result.get("tabs", [])[-1] if result.get("tabs") else result
+
+    async def update_dashboard_tab(
+        self, dashboard_id: int, tab_id: int, name: str
+    ) -> Any:
+        dashboard = await self.get_dashboard(dashboard_id)
+        tabs = dashboard.get("tabs", [])
+        existing_dashcards = dashboard.get("dashcards", [])
+        updated_tabs = [
+            {**t, "name": name} if t["id"] == tab_id else t for t in tabs
+        ]
+        result = await self._request(
+            "PUT",
+            f"/api/dashboard/{dashboard_id}",
+            json={
+                "dashcards": self._clean_dashcards(existing_dashcards),
+                "tabs": updated_tabs,
+            },
+        )
+        for tab in result.get("tabs", []):
+            if tab["id"] == tab_id:
+                return tab
+        return result
+
+    async def delete_dashboard_tab(self, dashboard_id: int, tab_id: int) -> Any:
+        dashboard = await self.get_dashboard(dashboard_id)
+        tabs = dashboard.get("tabs", [])
+        existing_dashcards = dashboard.get("dashcards", [])
+        filtered_tabs = [t for t in tabs if t["id"] != tab_id]
+        # Also remove dashcards assigned to the deleted tab
+        filtered_dashcards = [
+            dc for dc in existing_dashcards if dc.get("dashboard_tab_id") != tab_id
+        ]
+        return await self._request(
+            "PUT",
+            f"/api/dashboard/{dashboard_id}",
+            json={
+                "dashcards": self._clean_dashcards(filtered_dashcards),
+                "tabs": filtered_tabs,
+            },
+        )
+
+    @staticmethod
+    def _clean_dashcards(dashcards: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Normalize dashcards for PUT /api/dashboard/:id payload."""
+        return [
+            {
+                "id": dc["id"],
+                "card_id": dc.get("card_id"),
+                "row": dc.get("row", 0),
+                "col": dc.get("col", 0),
+                "size_x": dc.get("size_x", 12),
+                "size_y": dc.get("size_y", 8),
+                "series": dc.get("series", []),
+                "visualization_settings": dc.get("visualization_settings", {}),
+                "parameter_mappings": dc.get("parameter_mappings", []),
+                **(
+                    {"dashboard_tab_id": dc["dashboard_tab_id"]}
+                    if "dashboard_tab_id" in dc
+                    else {}
+                ),
+            }
+            for dc in dashcards
+        ]
 
     # ── Card operations ──────────────────────────────────────────────────
 

@@ -576,3 +576,51 @@ async def test_audit_dashboard_filters_missing_stage(
     data = json.loads(result.content[0].text)
     assert len(data["all_cards"][0]["errors"]) == 1
     assert "stage-number" in data["all_cards"][0]["errors"][0]
+
+
+# ── Dashboard tab tools ─────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_create_dashboard_tab_tool(
+    mcp_with_dash_tools: FastMCP, mock_client: AsyncMock
+) -> None:
+    mock_client.create_dashboard_tab.return_value = {"id": 10, "name": "Overview"}
+    result = await mcp_with_dash_tools.call_tool(
+        "create_dashboard_tab",
+        {"dashboard_id": 1, "name": "Overview"},
+    )
+    mock_client.create_dashboard_tab.assert_awaited_once_with(1, "Overview")
+    data = json.loads(result.content[0].text)
+    assert data["name"] == "Overview"
+    assert data["id"] == 10
+
+
+@pytest.mark.asyncio
+async def test_update_dashboard_tab_tool(
+    mcp_with_dash_tools: FastMCP, mock_client: AsyncMock
+) -> None:
+    mock_client.update_dashboard_tab.return_value = {"id": 10, "name": "Renamed"}
+    result = await mcp_with_dash_tools.call_tool(
+        "update_dashboard_tab",
+        {"dashboard_id": 1, "tab_id": 10, "name": "Renamed"},
+    )
+    mock_client.update_dashboard_tab.assert_awaited_once_with(1, 10, "Renamed")
+    data = json.loads(result.content[0].text)
+    assert data["name"] == "Renamed"
+
+
+@pytest.mark.asyncio
+async def test_delete_dashboard_tab_tool(
+    mcp_with_dash_tools: FastMCP, mock_client: AsyncMock
+) -> None:
+    mock_client.delete_dashboard_tab.return_value = None
+    result = await mcp_with_dash_tools.call_tool(
+        "delete_dashboard_tab",
+        {"dashboard_id": 1, "tab_id": 10},
+    )
+    mock_client.delete_dashboard_tab.assert_awaited_once_with(1, 10)
+    data = json.loads(result.content[0].text)
+    assert data["status"] == "success"
+    assert data["tab_id"] == 10
+    assert data["action"] == "deleted"

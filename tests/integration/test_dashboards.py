@@ -106,3 +106,43 @@ async def test_dashboard_with_card(
     finally:
         await client.delete_dashboard(dashboard["id"], hard_delete=True)
         await client.delete_card(card["id"], hard_delete=True)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_dashboard_tab_crud(
+    client: MetabaseClient, test_collection: dict[str, Any]
+) -> None:
+    """Full CRUD cycle for dashboard tabs."""
+    dashboard = await client.create_dashboard(
+        {
+            "name": "Tab Test Dashboard",
+            "collection_id": test_collection["id"],
+        }
+    )
+    dashboard_id = dashboard["id"]
+
+    try:
+        # Create tab
+        tab = await client.create_dashboard_tab(dashboard_id, "First Tab")
+        assert tab["name"] == "First Tab"
+        tab_id = tab["id"]
+
+        # Update tab
+        updated = await client.update_dashboard_tab(dashboard_id, tab_id, "Renamed Tab")
+        assert updated["name"] == "Renamed Tab"
+
+        # Verify tab exists on dashboard
+        fetched = await client.get_dashboard(dashboard_id)
+        tabs = fetched.get("tabs", [])
+        assert any(t["id"] == tab_id for t in tabs)
+
+        # Delete tab
+        await client.delete_dashboard_tab(dashboard_id, tab_id)
+
+        # Verify tab is gone
+        fetched = await client.get_dashboard(dashboard_id)
+        tabs = fetched.get("tabs", [])
+        assert not any(t["id"] == tab_id for t in tabs)
+
+    finally:
+        await client.delete_dashboard(dashboard_id, hard_delete=True)
