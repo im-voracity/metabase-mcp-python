@@ -818,6 +818,33 @@ class MetabaseClient:
             "GET", f"/api/table/{table_id}/data", params={"limit": str(limit)}
         )
 
+    # ── Field operations ──────────────────────────────────────────────────
+
+    async def get_field(self, field_id: int) -> Any:
+        return await self._request("GET", f"/api/field/{field_id}")
+
+    async def update_field(self, field_id: int, updates: dict[str, Any]) -> Any:
+        return await self._request("PUT", f"/api/field/{field_id}", json=updates)
+
+    async def get_field_values(self, field_id: int) -> Any:
+        return await self._request("GET", f"/api/field/{field_id}/values")
+
+    async def get_field_summary(self, field_id: int) -> Any:
+        return await self._request("GET", f"/api/field/{field_id}/summary")
+
+    async def search_field_values(
+        self, field_id: int, search_field_id: int
+    ) -> Any:
+        return await self._request(
+            "GET", f"/api/field/{field_id}/search/{search_field_id}"
+        )
+
+    async def rescan_field_values(self, field_id: int) -> Any:
+        return await self._request("POST", f"/api/field/{field_id}/rescan_values")
+
+    async def discard_field_values(self, field_id: int) -> Any:
+        return await self._request("POST", f"/api/field/{field_id}/discard_values")
+
     # ── Generic API method ───────────────────────────────────────────────
 
     async def api_call(
