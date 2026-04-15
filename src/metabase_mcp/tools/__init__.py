@@ -62,6 +62,9 @@ WRITE_TOOLS: set[str] = {
     "revert_dashboard",
     "save_dashboard",
     "save_dashboard_to_collection",
+    "create_dashboard_tab",
+    "update_dashboard_tab",
+    "delete_dashboard_tab",
     # Card write
     "create_card",
     "update_card",

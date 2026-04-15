@@ -704,3 +704,45 @@ def register_dashboard_tools(mcp: FastMCP, client: MetabaseClient) -> None:
         """Remove a dashboard from the user's favorites list - use this to clean up bookmarked dashboards"""
         result = await client.unfavorite_dashboard(dashboard_id)
         return json.dumps(result, indent=2)
+
+    @mcp.tool(
+        annotations=ToolAnnotations(readOnlyHint=False),
+    )
+    async def create_dashboard_tab(
+        dashboard_id: Annotated[int, Field(description="The ID of the dashboard")],
+        name: Annotated[str, Field(description="Name for the new tab")],
+    ) -> str:
+        """Create a new tab on a dashboard - use this to organize dashboard content into separate tabbed views"""
+        result = await client.create_dashboard_tab(dashboard_id, name)
+        return json.dumps(result, indent=2)
+
+    @mcp.tool(
+        annotations=ToolAnnotations(readOnlyHint=False),
+    )
+    async def update_dashboard_tab(
+        dashboard_id: Annotated[int, Field(description="The ID of the dashboard")],
+        tab_id: Annotated[int, Field(description="The ID of the tab to update")],
+        name: Annotated[str, Field(description="New name for the tab")],
+    ) -> str:
+        """Rename a tab on a dashboard - use this to update tab labels for clarity or reorganization"""
+        result = await client.update_dashboard_tab(dashboard_id, tab_id, name)
+        return json.dumps(result, indent=2)
+
+    @mcp.tool(
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True),
+    )
+    async def delete_dashboard_tab(
+        dashboard_id: Annotated[int, Field(description="The ID of the dashboard")],
+        tab_id: Annotated[int, Field(description="The ID of the tab to delete")],
+    ) -> str:
+        """Delete a tab from a dashboard - WARNING: this may remove or reassign cards on the tab"""
+        await client.delete_dashboard_tab(dashboard_id, tab_id)
+        return json.dumps(
+            {
+                "dashboard_id": dashboard_id,
+                "tab_id": tab_id,
+                "action": "deleted",
+                "status": "success",
+            },
+            indent=2,
+        )
