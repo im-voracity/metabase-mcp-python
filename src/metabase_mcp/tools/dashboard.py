@@ -364,6 +364,46 @@ def register_dashboard_tools(mcp: FastMCP, client: MetabaseClient) -> None:
             indent=2,
         )
 
+    # ── Dashboard parameter tools ──────────────────────────────────────
+
+    @mcp.tool(
+        annotations=ToolAnnotations(readOnlyHint=True),
+    )
+    async def get_dashboard_param_values(
+        dashboard_id: Annotated[int, Field(description="The ID of the dashboard")],
+        param_key: Annotated[
+            str,
+            Field(
+                description="The parameter ID (from the dashboard's 'parameters' array, e.g. 'fc2cd1be')"
+            ),
+        ],
+    ) -> str:
+        """Get possible values for a dashboard filter parameter - use this to discover what values are available for a specific filter before applying it"""
+        result = await client.get_dashboard_param_values(dashboard_id, param_key)
+        return json.dumps(result, indent=2)
+
+    @mcp.tool(
+        annotations=ToolAnnotations(readOnlyHint=True),
+    )
+    async def search_dashboard_param_values(
+        dashboard_id: Annotated[int, Field(description="The ID of the dashboard")],
+        param_key: Annotated[
+            str,
+            Field(
+                description="The parameter ID (from the dashboard's 'parameters' array)"
+            ),
+        ],
+        query: Annotated[
+            str,
+            Field(description="Search query to filter parameter values"),
+        ],
+    ) -> str:
+        """Search for specific values within a dashboard filter parameter - use this to find matching filter values by keyword instead of listing all"""
+        result = await client.search_dashboard_param_values(
+            dashboard_id, param_key, query
+        )
+        return json.dumps(result, indent=2)
+
     # ── Write tools ─────────────────────────────────────────────────────
 
     @mcp.tool(

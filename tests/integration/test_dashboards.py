@@ -146,3 +146,32 @@ async def test_dashboard_tab_crud(
 
     finally:
         await client.delete_dashboard(dashboard_id, hard_delete=True)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_dashboard_param_values(client: MetabaseClient) -> None:
+    """Get and search parameter values on dashboard with filters."""
+    # Dashboard 1 (E-commerce insights) has a Category parameter with id "5eeec658"
+    dashboards = await client.get_dashboards()
+    if not dashboards:
+        pytest.skip("No dashboards available")
+    # Find a dashboard with parameters
+    dashboard = await client.get_dashboard(dashboards[0]["id"])
+    params = dashboard.get("parameters", [])
+    if not params:
+        pytest.skip("No parameters on first dashboard")
+
+    param_key = params[0]["id"]
+    dashboard_id = dashboard["id"]
+
+    # Get values
+    values = await client.get_dashboard_param_values(dashboard_id, param_key)
+    assert "values" in values
+
+    # Search values (use first char of first value if available)
+    if values.get("values"):
+        first_val = values["values"][0][0]
+        search = await client.search_dashboard_param_values(
+            dashboard_id, param_key, str(first_val)[:3]
+        )
+        assert "values" in search
