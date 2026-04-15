@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Dashboard tab management tools: `create_dashboard_tab`, `update_dashboard_tab`, `delete_dashboard_tab` (#21)
+- `_clean_dashcards()` static helper to normalize dashcard payloads, reused across tab and card operations (#21)
 - Session token automatic refresh with TTL tracking and 401-based re-authentication in `MetabaseAuth` (#2)
 - Comprehensive test suite: 190 tests with 84% coverage (up from 51%) (#6)
 - `pytest-cov` dev dependency and `--cov-fail-under=80` enforcement in CI (#6)
