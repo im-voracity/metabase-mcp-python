@@ -624,3 +624,41 @@ async def test_delete_dashboard_tab_tool(
     assert data["status"] == "success"
     assert data["tab_id"] == 10
     assert data["action"] == "deleted"
+
+
+# ── Dashboard parameter tools ───────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_dashboard_param_values_tool(
+    mcp_with_dash_tools: FastMCP, mock_client: AsyncMock
+) -> None:
+    mock_client.get_dashboard_param_values.return_value = {
+        "values": [["Gadget"], ["Widget"]],
+        "has_more_values": False,
+    }
+    result = await mcp_with_dash_tools.call_tool(
+        "get_dashboard_param_values",
+        {"dashboard_id": 1, "param_key": "abc123"},
+    )
+    mock_client.get_dashboard_param_values.assert_awaited_once_with(1, "abc123")
+    data = json.loads(result.content[0].text)
+    assert len(data["values"]) == 2
+    assert data["has_more_values"] is False
+
+
+@pytest.mark.asyncio
+async def test_search_dashboard_param_values_tool(
+    mcp_with_dash_tools: FastMCP, mock_client: AsyncMock
+) -> None:
+    mock_client.search_dashboard_param_values.return_value = {
+        "values": [["Gadget"]],
+        "has_more_values": False,
+    }
+    result = await mcp_with_dash_tools.call_tool(
+        "search_dashboard_param_values",
+        {"dashboard_id": 1, "param_key": "abc123", "query": "Gad"},
+    )
+    mock_client.search_dashboard_param_values.assert_awaited_once_with(1, "abc123", "Gad")
+    data = json.loads(result.content[0].text)
+    assert data["values"] == [["Gadget"]]

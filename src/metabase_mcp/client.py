@@ -294,6 +294,23 @@ class MetabaseClient:
             "POST", f"/api/dashboard/save/collection/{parent_collection_id}", json=dashboard
         )
 
+    # ── Dashboard parameter operations ──────────────────────────────────────
+
+    async def get_dashboard_param_values(
+        self, dashboard_id: int, param_key: str
+    ) -> Any:
+        return await self._request(
+            "GET", f"/api/dashboard/{dashboard_id}/params/{param_key}/values"
+        )
+
+    async def search_dashboard_param_values(
+        self, dashboard_id: int, param_key: str, query: str
+    ) -> Any:
+        return await self._request(
+            "GET",
+            f"/api/dashboard/{dashboard_id}/params/{param_key}/search/{query}",
+        )
+
     # ── Dashboard tab operations ──────────────────────────────────────────
     #
     # Metabase manages tabs atomically through PUT /api/dashboard/:id
