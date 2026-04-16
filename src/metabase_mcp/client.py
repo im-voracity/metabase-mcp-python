@@ -818,6 +818,42 @@ class MetabaseClient:
             "GET", f"/api/table/{table_id}/data", params={"limit": str(limit)}
         )
 
+    # ── Notification operations ─────────────────────────────────────────────
+
+    async def get_notifications(self) -> Any:
+        return await self._request("GET", "/api/notification")
+
+    async def get_notification(self, notification_id: int) -> Any:
+        return await self._request("GET", f"/api/notification/{notification_id}")
+
+    async def create_notification(self, notification: dict[str, Any]) -> Any:
+        return await self._request("POST", "/api/notification", json=notification)
+
+    async def update_notification(
+        self, notification_id: int, updates: dict[str, Any]
+    ) -> Any:
+        return await self._request(
+            "PUT", f"/api/notification/{notification_id}", json=updates
+        )
+
+    async def send_notification(self, notification_id: int) -> Any:
+        return await self._request(
+            "POST", f"/api/notification/{notification_id}/send"
+        )
+
+    async def unsubscribe_notification(self, notification_id: int) -> Any:
+        return await self._request(
+            "POST", f"/api/notification/{notification_id}/unsubscribe"
+        )
+
+    # ── Alert operations (legacy) ────────────────────────────────────────
+
+    async def get_alerts(self) -> Any:
+        return await self._request("GET", "/api/alert")
+
+    async def get_alert(self, alert_id: int) -> Any:
+        return await self._request("GET", f"/api/alert/{alert_id}")
+
     # ── Action operations ─────────────────────────────────────────────────
 
     async def get_actions(self) -> Any:
