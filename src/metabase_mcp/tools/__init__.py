@@ -89,6 +89,11 @@ WRITE_TOOLS: set[str] = {
     "reorder_table_fields",
     "rescan_table_field_values",
     "sync_table_schema",
+    # Notification write
+    "create_notification",
+    "update_notification",
+    "send_notification",
+    "unsubscribe_notification",
     # Action write
     "create_action",
     "update_action",
@@ -128,6 +133,7 @@ def register_all_tools(mcp: FastMCP, client: MetabaseClient, mode: str = "essent
     from metabase_mcp.tools.dashboard import register_dashboard_tools
     from metabase_mcp.tools.database import register_database_tools
     from metabase_mcp.tools.field import register_field_tools
+    from metabase_mcp.tools.notification import register_notification_tools
     from metabase_mcp.tools.table import register_table_tools
 
     # Register all tools first
@@ -137,6 +143,7 @@ def register_all_tools(mcp: FastMCP, client: MetabaseClient, mode: str = "essent
     register_card_tools(mcp, client)
     register_dashboard_tools(mcp, client)
     register_action_tools(mcp, client)
+    register_notification_tools(mcp, client)
     register_additional_tools(mcp, client)
 
     if mode == "all":

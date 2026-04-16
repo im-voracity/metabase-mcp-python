@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Notification and alert tools: `list_notifications`, `get_notification`, `create_notification`, `update_notification`, `send_notification`, `unsubscribe_notification`, `list_alerts`, `get_alert` (#26)
 - Action tools: `list_actions`, `get_action`, `create_action`, `update_action`, `delete_action`, `execute_action` (#25)
 - Field management tools: `get_field`, `update_field`, `get_field_values`, `get_field_summary`, `search_field_values`, `rescan_field_values`, `discard_field_values` (#24)
 - Dashboard parameter tools: `get_dashboard_param_values`, `search_dashboard_param_values` (#23)
