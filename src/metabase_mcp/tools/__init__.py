@@ -89,6 +89,11 @@ WRITE_TOOLS: set[str] = {
     "reorder_table_fields",
     "rescan_table_field_values",
     "sync_table_schema",
+    # Action write
+    "create_action",
+    "update_action",
+    "delete_action",
+    "execute_action",
     # Field write
     "update_field",
     "rescan_field_values",
@@ -117,6 +122,7 @@ def register_all_tools(mcp: FastMCP, client: MetabaseClient, mode: str = "essent
 
     After registering all tools, removes those that don't match the current mode.
     """
+    from metabase_mcp.tools.action import register_action_tools
     from metabase_mcp.tools.additional import register_additional_tools
     from metabase_mcp.tools.card import register_card_tools
     from metabase_mcp.tools.dashboard import register_dashboard_tools
@@ -130,6 +136,7 @@ def register_all_tools(mcp: FastMCP, client: MetabaseClient, mode: str = "essent
     register_field_tools(mcp, client)
     register_card_tools(mcp, client)
     register_dashboard_tools(mcp, client)
+    register_action_tools(mcp, client)
     register_additional_tools(mcp, client)
 
     if mode == "all":
