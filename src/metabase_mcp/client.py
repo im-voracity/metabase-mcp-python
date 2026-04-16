@@ -818,6 +818,22 @@ class MetabaseClient:
             "GET", f"/api/table/{table_id}/data", params={"limit": str(limit)}
         )
 
+    # ── Bookmark operations ────────────────────────────────────────────────
+
+    async def get_bookmarks(self) -> Any:
+        return await self._request("GET", "/api/bookmark")
+
+    async def create_bookmark(self, model: str, model_id: int) -> Any:
+        return await self._request("POST", f"/api/bookmark/{model}/{model_id}")
+
+    async def delete_bookmark(self, model: str, model_id: int) -> Any:
+        return await self._request("DELETE", f"/api/bookmark/{model}/{model_id}")
+
+    async def reorder_bookmarks(self, orderings: list[dict[str, Any]]) -> Any:
+        return await self._request(
+            "PUT", "/api/bookmark/ordering", json={"orderings": orderings}
+        )
+
     # ── Notification operations ─────────────────────────────────────────────
 
     async def get_notifications(self) -> Any:
