@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Bookmark tools: `list_bookmarks`, `create_bookmark`, `delete_bookmark`, `reorder_bookmarks` (#27)
 - Notification and alert tools: `list_notifications`, `get_notification`, `create_notification`, `update_notification`, `send_notification`, `unsubscribe_notification`, `list_alerts`, `get_alert` (#26)
 - Action tools: `list_actions`, `get_action`, `create_action`, `update_action`, `delete_action`, `execute_action` (#25)
 - Field management tools: `get_field`, `update_field`, `get_field_values`, `get_field_summary`, `search_field_values`, `rescan_field_values`, `discard_field_values` (#24)

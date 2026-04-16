@@ -103,6 +103,10 @@ WRITE_TOOLS: set[str] = {
     "update_field",
     "rescan_field_values",
     "discard_field_values",
+    # Bookmark write
+    "create_bookmark",
+    "delete_bookmark",
+    "reorder_bookmarks",
     # Additional write
     "create_collection",
     "update_collection",
@@ -129,6 +133,7 @@ def register_all_tools(mcp: FastMCP, client: MetabaseClient, mode: str = "essent
     """
     from metabase_mcp.tools.action import register_action_tools
     from metabase_mcp.tools.additional import register_additional_tools
+    from metabase_mcp.tools.bookmark import register_bookmark_tools
     from metabase_mcp.tools.card import register_card_tools
     from metabase_mcp.tools.dashboard import register_dashboard_tools
     from metabase_mcp.tools.database import register_database_tools
@@ -144,6 +149,7 @@ def register_all_tools(mcp: FastMCP, client: MetabaseClient, mode: str = "essent
     register_dashboard_tools(mcp, client)
     register_action_tools(mcp, client)
     register_notification_tools(mcp, client)
+    register_bookmark_tools(mcp, client)
     register_additional_tools(mcp, client)
 
     if mode == "all":
