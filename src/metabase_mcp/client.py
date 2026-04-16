@@ -818,6 +818,32 @@ class MetabaseClient:
             "GET", f"/api/table/{table_id}/data", params={"limit": str(limit)}
         )
 
+    # ── Action operations ─────────────────────────────────────────────────
+
+    async def get_actions(self) -> Any:
+        return await self._request("GET", "/api/action")
+
+    async def get_action(self, action_id: int) -> Any:
+        return await self._request("GET", f"/api/action/{action_id}")
+
+    async def create_action(self, action: dict[str, Any]) -> Any:
+        return await self._request("POST", "/api/action", json=action)
+
+    async def update_action(self, action_id: int, updates: dict[str, Any]) -> Any:
+        return await self._request("PUT", f"/api/action/{action_id}", json=updates)
+
+    async def delete_action(self, action_id: int) -> Any:
+        return await self._request("DELETE", f"/api/action/{action_id}")
+
+    async def execute_action(
+        self, action_id: int, parameters: dict[str, Any] | None = None
+    ) -> Any:
+        return await self._request(
+            "POST",
+            f"/api/action/{action_id}/execute",
+            json={"parameters": parameters or {}},
+        )
+
     # ── Field operations ──────────────────────────────────────────────────
 
     async def get_field(self, field_id: int) -> Any:
